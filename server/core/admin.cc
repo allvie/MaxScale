@@ -19,6 +19,8 @@
 #include <climits>
 #include <new>
 #include <fstream>
+#include <unordered_map>
+
 #include <microhttpd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -34,6 +36,7 @@
 #include <maxscale/clock.h>
 #include <maxscale/http.hh>
 #include <maxscale/adminusers.hh>
+#include <maxscale/paths.h>
 
 #include "internal/resource.hh"
 
@@ -53,6 +56,8 @@ static struct ThisUnit
     bool               log_daemon_errors = true;
     bool               cors = false;
     std::string        sign_key;
+
+    std::unordered_map<std::string, std::string> files;
 } this_unit;
 
 int header_cb(void* cls,
@@ -152,6 +157,16 @@ std::string load_file(const std::string& file)
     }
 
     return ss.str();
+}
+
+std::string get_file(const std::string& file)
+{
+    if (this_unit.files.find(file) == this_unit.files.end())
+    {
+        this_unit.files[file] = load_file(file);
+    }
+
+    return this_unit.files[file];
 }
 
 static bool load_ssl_certificates()
@@ -389,6 +404,9 @@ int Client::process(string url, string method, const char* upload_data, size_t* 
     MXS_DEBUG("Request:\n%s", request.to_string().c_str());
     request.fix_api_version();
 
+    std::string data;
+    std::string path = get_datadir();
+    path += "/gui/" + request.uri_segment(0, request.uri_part_count());
 
     if (request.uri_part_count() == 1 && request.uri_segment(0, 1) == "auth")
     {
@@ -402,12 +420,19 @@ int Client::process(string url, string method, const char* upload_data, size_t* 
 
         reply = HttpResponse(MHD_HTTP_OK, json_pack("{s: s}", "token", token.c_str()));
     }
+    else if (access(path.c_str(), R_OK) == 0)
+    {
+        data = get_file(path);
+
+        if (!data.empty())
+        {
+            reply = HttpResponse(MHD_HTTP_OK);
+        }
+    }
     else
     {
         reply = resource_handle_request(request);
     }
-
-    string data;
 
     if (json_t* js = reply.get_response())
     {
