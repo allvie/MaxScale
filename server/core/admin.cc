@@ -462,6 +462,10 @@ int Client::process(string url, string method, const char* upload_data, size_t* 
         add_cors_headers(response);
     }
 
+    MHD_add_response_header(response, "X-Frame-Options", "Deny");
+    MHD_add_response_header(response, "X-XSS-Protection", "1");
+    MHD_add_response_header(response, "Referrer-Policy", "same-origin");
+
     int rval = MHD_queue_response(m_connection, reply.get_code(), response);
     MHD_destroy_response(response);
 
