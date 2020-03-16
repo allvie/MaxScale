@@ -169,6 +169,23 @@ std::string get_file(const std::string& file)
     return this_unit.files[file];
 }
 
+std::string get_filename(const HttpRequest& request)
+{
+    std::string path = get_datadir();
+    path += "/gui/";
+
+    if (request.uri_part_count() == 0)
+    {
+        path += "index.html";
+    }
+    else
+    {
+        path += request.uri_segment(0, request.uri_part_count());
+    }
+
+    return path;
+}
+
 static bool load_ssl_certificates()
 {
     bool rval = true;
@@ -405,8 +422,7 @@ int Client::process(string url, string method, const char* upload_data, size_t* 
     request.fix_api_version();
 
     std::string data;
-    std::string path = get_datadir();
-    path += "/gui/" + request.uri_segment(0, request.uri_part_count());
+    std::string path = get_filename(request);
 
     if (request.uri_part_count() == 1 && request.uri_segment(0, 1) == "auth")
     {
